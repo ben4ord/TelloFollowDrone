@@ -1,3 +1,5 @@
+
+
 import cv2
 import time
 from djitellopy import Tello
@@ -20,13 +22,13 @@ model = YOLO("yolov8n.pt")
 # --- Initialize person tracking state ---
 locked_id = None                # The ID of the currently locked person
 lock_lost_count = 0             # Counts how many frames we've lost the locked person
-max_lost_frames = 150           # Number of frames allowed to lose the target before reset
+max_lost_frames = 60           # Number of frames allowed to lose the target before reset
 
 # max_age: Controls how many consecutive frames a track can disappear for (i.e., not be matched with a detection) before it's deleted
 # n_init: Specifies how many consecutive detections are required before a track is considered 'confirmed'
 tracker = DeepSort(max_age=30, n_init=3)  # Deep SORT tracker with aging tolerance
 last_locked_center = None                 # (x, y) center of the last locked position for proximity filtering, set to none since we haven't assigned it yet
-
+person_found = False  # Flag to track whether the locked person is currently visible (in frame)
 # --- Set up display window ---
 maxW, maxH = 640, 480             # Frame size
 font = cv2.FONT_HERSHEY_SIMPLEX   # Font style for tracking
@@ -95,9 +97,17 @@ while True:
 
 
     # --- Look through tracked objects ---
-    person_found = False  # Flag to track whether the locked person is currently visible (in frame)
-
+  
+    
     hV = dV = vV = rV = 0 # Initializing Variables for drone movement control
+    #person_found = False
+
+    if not person_found:
+        rV = 30
+        print("Finding Target......")
+        tello.send_rc_control(hV,dV,vV,rV)
+
+    
 
     # Looping through each currently tracked object
     for track in tracks:
@@ -141,7 +151,7 @@ while True:
 
             # Vertical offset (positive = person is too low)
             uddelta = frame_cy - bbox_cy
-            if uddelta > 0.2 * maxH:
+            if uddelta > 0.05 * maxH:
                 vV = 30   # Move up
             elif uddelta < -0.2 * maxH:
                 vV = -30  # Move down
@@ -158,15 +168,17 @@ while True:
             break  # Only track one person
 
     # --- Handle case where locked person is not found ---
-    if not person_found and locked_id is not None:
+    if locked_id is not None:
         lock_lost_count += 1 # Increment the total number of frames the person is lost for
-
+        print(f"lostCount {lock_lost_count}")
         if lock_lost_count > max_lost_frames:
             # If we've lost them for too long (frame threshold), reset the locked person to allow a new person to be tracked
-            print("[INFO] Lost lock. Resetting.")
+            for num in range(1,16):
+                print("[INFO] Lost lock. Resetting.")
             locked_id = None
             last_locked_center = None
             lock_lost_count = 0
+            person_found = False
 
     if fly_flag:
         tello.send_rc_control(hV, dV, vV, rV) # Sending control information to the drone so it knows what to do
