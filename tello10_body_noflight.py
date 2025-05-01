@@ -130,8 +130,16 @@ while True:
     cv2.imshow("Tello Person Detection", frame)
 
     # --- Quit on 'q' key ---
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord('q'):
         break
+    elif key == ord('r'):
+        locked_id = None
+        last_locked_center = None
+        lock_lost_count = 0
+        print('Reset Button Pressed!')
+        time.sleep(3)
+        print('Rotating to find person')
 
 # --- Cleanup ---
 cv2.destroyAllWindows()

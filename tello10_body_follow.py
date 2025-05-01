@@ -1,5 +1,3 @@
-
-
 import cv2
 import time
 from djitellopy import Tello
@@ -40,6 +38,7 @@ print("[INFO] Starting YOLOv8 person detection. Press 'q' to quit.")
 
 fly_flag = True
 tello.takeoff()
+time.sleep(3)
 tello.move_up(75)  # Boost Drone Upwards
 
 
@@ -187,11 +186,23 @@ while True:
     cv2.imshow("Tello Person Detection", frame)
 
     # --- Quit on 'q' key ---
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord('q'):
         if fly_flag:
-            tello.land() # Not sure if we need this, put it here just in case
+            tello.land()
         break
+    elif key == ord('r'): # Reset key to find a new target
+        locked_id = None
+        last_locked_center = None
+        lock_lost_count = 0
+        print('Reset Button Pressed!')
+        tello.send_rc_control(0, 0, 0, 30)
+        print('Rotating to find person')
+        time.sleep(3)
+    elif key == ord('f'): # Flip key
+        tello.flip_back()
+    
 
 # --- Cleanup ---
 cv2.destroyAllWindows()
-#tello.streamoff()
+tello.streamoff()
