@@ -102,7 +102,7 @@ while True:
     #person_found = False
 
     if not person_found:
-        rV = 30
+        rV = 45
         print("Finding Target......")
         tello.send_rc_control(hV,dV,vV,rV)
 
@@ -155,11 +155,21 @@ while True:
             elif uddelta < -0.2 * maxH:
                 vV = -30  # Move down
 
-            # Distance (bounding box width used as proxy)
-            if bbox_w < 100:
-                dV = 30   # Move forward
-            elif bbox_w > 140:
-                dV = -30  # Move backward
+            desired_width = 150     # The ideal bbox width (you can adjust after testing)
+            tolerance = 30          # +/- 30 pixels neutral zone
+            k = 0.3                 # Proportional gain (tweak as needed)
+            max_speed = 45          # Limit speed to avoid overshooting
+
+            # Inside your loop (after detecting the face/body)
+            if bbox_w > 0:  # Make sure a valid bbox is detected
+                error = bbox_w - desired_width
+                if abs(error) < tolerance:
+                    dV = 0  # No need to move
+                else:
+                    dV = -int(k * error)
+                    dV = max(min(dV, max_speed), -max_speed)
+
+                print(f"[INFO] bbox_w: {bbox_w}, error: {error}, dV: {dV}")
 
             # Draw bounding box and label
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
