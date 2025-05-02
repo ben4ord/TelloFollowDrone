@@ -17,20 +17,6 @@ frame_read = tello.get_frame_read()
 # --- Load YOLOv8 model ('yolov8s.pt') - Built in model
 model = YOLO("yolov8n.pt")
 
-
-# --- Face Recognizer - Built in model
-recognizer = cv2.face.LBPHFaceRecognizer_create()
-recognizer.read('tellotrainer.yml')
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades +'haarcascade_frontalface_alt.xml')
-
-font = cv2.FONT_HERSHEY_SIMPLEX
-
-#iniciate id counter
-id = 0
-
-# names related to ids: example ==> Marcelo: id=1,  etc
-names = ['None', 'Ben', 'Kim', 'Mal','Forest']
-
 # --- Initialize person tracking state ---
 locked_id = None                # The ID of the currently locked person
 lock_lost_count = 0             # Counts how many frames we've lost the locked person
@@ -41,13 +27,16 @@ max_lost_frames = 60           # Number of frames allowed to lose the target bef
 tracker = DeepSort(max_age=30, n_init=3)  # Deep SORT tracker with aging tolerance
 last_locked_center = None                 # (x, y) center of the last locked position for proximity filtering, set to none since we haven't assigned it yet
 person_found = False  # Flag to track whether the locked person is currently visible (in frame)
-friendFound = 0  
-noMoreFlip = False                       
+
+# --- Face Recognizer - Built in model
+recognizer = cv2.face.LBPHFaceRecognizer_create()
+recognizer.read('tellotrainer.yml')
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades +'haarcascade_frontalface_alt.xml')
+
 # --- Set up display window ---
 maxW, maxH = 640, 480             # Frame size
 minW = 0.1*(maxW) # min width for face detection
 minH = 0.1*(maxH) # min heigh for face detection
-
 font = cv2.FONT_HERSHEY_SIMPLEX   # Font style for tracking
 cv2.namedWindow("Tello Person Detection", cv2.WINDOW_NORMAL)
 cv2.resizeWindow("Tello Person Detection", maxW, maxH)
@@ -60,6 +49,13 @@ tello.takeoff()
 time.sleep(3)
 tello.move_up(75)  # Boost Drone Upwards
 
+is_flipping = False
+friendFound = 0  
+noMoreFlip = False
+
+names = ['None', 'Ben', 'Brax']
+
+id = 0
 
 
 # --- Main loop ---
@@ -67,6 +63,16 @@ while True:
     # --- Read and resize the current frame from the drone ---
     frame = frame_read.frame
     frame = cv2.resize(frame, (maxW, maxH))
+
+    # --- If flipping, skip tracking/movement and just show the frame ---
+    if is_flipping:
+        cv2.imshow("Tello Person Detection", frame)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
+            if fly_flag:
+                tello.land()
+            break
+        continue
 
     # --- Run YOLOv8 detection on the frame ---
     results = model(frame, verbose=False)[0]
@@ -121,15 +127,17 @@ while True:
     #person_found = False
 
     if not person_found:
-        rV = 30
+        rV = 45
         print("Finding Target......")
         tello.send_rc_control(hV,dV,vV,rV)
-
-    #Drone detects face and flips 
+    
+    # Drone detects face and flips 
     if friendFound and not noMoreFlip:
         tello.flip_back()
         friendFound = 100
         noMoreFlip = True
+
+    
 
     # Looping through each currently tracked object
     for track in tracks:
@@ -151,7 +159,7 @@ while True:
 
             # Update the last known center of the locked person to the current center
             last_locked_center = ((x1 + x2) // 2, (y1 + y2) // 2)
-            cropped_person = frame[y1:y2, x1:x2]
+
             img = cv2.resize(frame,(maxW,maxH))
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             #faces = face_cascade.detectMultiScale(gray, 1.1, 4)
@@ -210,11 +218,25 @@ while True:
             elif uddelta < -0.2 * maxH:
                 vV = -30  # Move down
 
-            # Distance (bounding box width used as proxy)
-            if bbox_w < 100:
-                dV = 30   # Move forward
-            elif bbox_w > 140:
-                dV = -30  # Move backward
+            desired_width_before = 400     # The ideal bbox width (you can adjust after testing)
+            desired_width_after = 200
+            tolerance = 30          # +/- 30 pixels neutral zone
+            k = 0.3                 # Proportional gain (tweak as needed)
+            max_speed = 45          # Limit speed to avoid overshooting
+
+            # Inside your loop (after detecting the face/body)
+            if bbox_w > 0:  # Make sure a valid bbox is detected
+                if friendFound:
+                    error = bbox_w - desired_width_after
+                else:
+                    error = bbox_w - desired_width_before
+                if abs(error) < tolerance:
+                    dV = 0  # No need to move
+                else:
+                    dV = -int(k * error)
+                    dV = max(min(dV, max_speed), -max_speed)
+
+                print(f"[INFO] bbox_w: {bbox_w}, error: {error}, dV: {dV}")
 
             # Draw bounding box and label
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -233,8 +255,6 @@ while True:
             last_locked_center = None
             lock_lost_count = 0
             person_found = False
-            noMoreFlip = False
-            friendFound = False
 
     if fly_flag:
         tello.send_rc_control(hV, dV, vV, rV) # Sending control information to the drone so it knows what to do
@@ -248,16 +268,25 @@ while True:
         if fly_flag:
             tello.land()
         break
+
     elif key == ord('r'): # Reset key to find a new target
         locked_id = None
         last_locked_center = None
         lock_lost_count = 0
+        noMoreFlip = False
+        friendFound = False
         print('Reset Button Pressed!')
         tello.send_rc_control(0, 0, 0, 30)
         print('Rotating to find person')
         time.sleep(3)
-    elif key == ord('f'): # Flip key
+
+    elif key == ord('f'):  # Flip key
+        print("[INFO] Flip initiated. Pausing tracking.")
+        is_flipping = True  # Pause tracking & movement
         tello.flip_back()
+        time.sleep(2)       # Give it time to stabilize
+        is_flipping = False
+        print("[INFO] Flip complete. Resuming tracking.")
     
 
 # --- Cleanup ---
