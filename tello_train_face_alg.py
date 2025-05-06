@@ -4,7 +4,7 @@ from PIL import Image
 import os
 
 # Path for face image database
-path = 'tellodataset'
+path = 'face_data'
 
 recognizer = cv2.face.LBPHFaceRecognizer_create()
 detector = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
