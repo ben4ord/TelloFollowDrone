@@ -6,7 +6,7 @@ Capture multiple faces from multiple users to be stored in a dataset directory.
 
 Original code by Anirban Kar: https://github.com/thecodacus/Face-Recognition
 Adapted by Marcelo Rovai - MJRoBot.org @ 21Feb18
-Modified to use laptop webcam and auto-continue numbering by ChatGPT @ 2025
+Modified to use laptop webcam
 '''
 
 import cv2
@@ -31,6 +31,7 @@ dataset_dir = 'face_data'
 if not os.path.exists(dataset_dir):
     os.makedirs(dataset_dir)
 
+#ChatGPT helped with this short block so that it doesn't override previous images from the same ID
 # Find the current highest count for this face_id
 existing_files = [f for f in os.listdir(dataset_dir) if re.match(rf'User\.{face_id}\.\d+\.jpg', f)]
 if existing_files:
