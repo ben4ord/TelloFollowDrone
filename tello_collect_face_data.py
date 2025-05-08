@@ -31,7 +31,7 @@ dataset_dir = 'face_data'
 if not os.path.exists(dataset_dir):
     os.makedirs(dataset_dir)
 
-#ChatGPT helped with this short block so that it doesn't override previous images from the same ID
+# ChatGPT helped with this short block so that it doesn't override previous images from the same ID
 # Find the current highest count for this face_id
 existing_files = [f for f in os.listdir(dataset_dir) if re.match(rf'User\.{face_id}\.\d+\.jpg', f)]
 if existing_files:
